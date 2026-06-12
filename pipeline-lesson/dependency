@@ -1,0 +1,68 @@
+name: Dependency Demo
+
+on:
+  push:
+    branches:
+      - main
+    
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        run: |
+          echo "Running tests..."
+          # Add commands to run your tests here, e.g., npm test, pytest, etc.
+      - name: Build project
+        run: |
+          echo "Building project..."
+          # Add commands to build your project here, e.g., npm run build, mvn package, etc.
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: test # This job will only run after the 'test' job has completed successfully
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run Linter
+        run: |
+          echo "Running linter..."
+          # Add commands to run your linter here, e.g., eslint, flake8, etc.
+  
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, lint] # This job will only run after both 'test' and 'lint' jobs have completed successfully
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build project
+        run: |
+          echo "Building project..."
+          # Add commands to build your project here, e.g., npm run build, mvn package, etc.
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build # This job will only run after the 'build' job has completed successfully
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Deploy to development environment
+        run: |
+          echo "Deploying to development environment..."
+          # Add deployment commands for the development environment here, e.g., scp, rsync, or cloud deployment commands
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: build # This job will only run after the 'build' job has completed successfully
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@v2
+        
+  
+  

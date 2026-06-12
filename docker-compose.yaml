@@ -1,0 +1,55 @@
+name: taskapp
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: taskapp_user
+      POSTGRES_PASSWORD: taskapp_password
+      POSTGRES_DB: taskapp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskapp_user} -d ${POSTGRES_DB:-taskapp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.75
+
+  backend:
+    build: ./taskapp_backend_cicd
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: taskapp
+      DATABASE_USER: taskapp_user
+      DATABASE_PASSWORD: taskapp_password
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-12345}
+      FLASK_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.75
+
+  frontend:
+    build: 
+      context: ./taskapp_frontend_cicd/taskapp_frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.75
+
+volumes:
+  pgdata:
+

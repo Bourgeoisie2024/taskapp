@@ -1,0 +1,27 @@
+# Environment
+.env
+*.env
+
+# Node
+node_modules/
+npm-debug.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Database
+pgdata/
+postgres-data/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+
+# Build
+dist/
+build/
