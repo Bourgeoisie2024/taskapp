@@ -1,0 +1,137 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main]
+    
+    paths: 
+      - 'alembic.ini'
+      - 'migrations/**'
+      - 'requirements.txt'
+      - '**.py'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  quality:
+    name: Code Quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      - name: Install Linting tools
+        run: pip install flake8 black isort bandit
+      - name: check code formatting
+        run: black --check .
+        continue-on-error: true
+
+      - name: check import sorting
+        run: isort --check-only .
+        continue-on-error: true
+
+      - name: run linter with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        continue-on-error: true
+
+      - name: upload code quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-report
+          path: code-quality-report.txt
+          retention-days: 7
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: quality
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports: 
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}  
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: install dependencies
+        run: |
+          pip install pytest pytest-cov -r requirements.txt
+
+      - name: Set up database
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: testdb
+          DATABASE_USER: test
+          DATABASE_PASSWORD: test
+          SECRET_KEY: test-secret-key-not-for-production
+        run: |
+          # Wait for PostgreSQL to be ready
+          alembic upgrade head
+
+      - name: Run pytest
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: testdb
+          DATABASE_USER: test
+          DATABASE_PASSWORD: test
+          SECRET_KEY: test-secret-key-not-for-production
+        run: |
+          pytest \
+            --cov=app \ 
+            --cov-report=xml \ 
+            --cov-report=html \ 
+            --cov-report=term \ 
+            -v 
+        
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            htmlcov/
+            coverage.xml
+          retention-days: 7
+
+  build:
+    name: Build and Deploy Artifact
+    runs-on: ubuntu-latest
+    needs: [quality, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create the Artifact
+        run: |
+          mkdir -p package
+          cp -r alembic.ini app/ migrations/ requirements.txt run.py package/
+          tar -czf backend.tar.gz -C package .
+          tar -tzf backend.tar.gz
